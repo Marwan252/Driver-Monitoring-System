@@ -51,29 +51,56 @@ session_end_time = None
 
 risk_history = deque(maxlen=300)
 
+REPORT_FOLDER = "reports"
+SOUNDS_FOLDER = "sounds"
+os.makedirs(REPORT_FOLDER, exist_ok=True)
+os.makedirs(SOUNDS_FOLDER, exist_ok=True)
+
 # ===============================
-# ALERT SYSTEM
+# ALERT SYSTEM (Advanced)
 # ===============================
-last_alert_time = 0
-ALERT_COOLDOWN = 3
+
+high_alert_active = False
+medium_alert_played = False
+high_last_play_time = 0
+HIGH_REPEAT_INTERVAL = 2  # seconds between repeated HIGH alerts
+
 
 def trigger_alert(level):
-    global last_alert_time
+    global high_alert_active, medium_alert_played, high_last_play_time
+
     current_time = time.time()
 
-    if current_time - last_alert_time < ALERT_COOLDOWN:
-        return
+    # -----------------
+    # MEDIUM → single beep
+    # -----------------
+    if level == "MEDIUM":
+        if not medium_alert_played:
+            winsound.PlaySound("SystemExclamation",
+                               winsound.SND_ALIAS | winsound.SND_ASYNC)
+            medium_alert_played = True
+        high_alert_active = False
 
-    if level == "HIGH":
-        winsound.Beep(1200, 700)
-    elif level == "MEDIUM":
-        winsound.Beep(900, 300)
+    # -----------------
+    # HIGH → repeating alert
+    # -----------------
+    elif level == "HIGH":
+        medium_alert_played = False
 
-    last_alert_time = current_time
+        # repeat every 2 seconds
+        if current_time - high_last_play_time > HIGH_REPEAT_INTERVAL:
+            winsound.PlaySound("SystemHand",
+                               winsound.SND_ALIAS | winsound.SND_ASYNC)
+            high_last_play_time = current_time
 
-REPORT_FOLDER = "reports"
-os.makedirs(REPORT_FOLDER, exist_ok=True)
+        high_alert_active = True
 
+    # -----------------
+    # LOW → reset everything
+    # -----------------
+    else:
+        high_alert_active = False
+        medium_alert_played = False
 # ===============================
 # FRAME PROCESSING
 # ===============================
@@ -91,7 +118,7 @@ def process_frame(frame):
 
     phone_detected = False
     phone_near_face = False
-    hand_on_face = False
+    hands_near_face_count = 0
 
     risk_score = 0
     risk_level = "LOW"
@@ -136,10 +163,9 @@ def process_frame(frame):
     hand_boxes = hand_detector.detect(frame)
 
     # =====================================================
-    # 4️⃣ Hand قريب من الوجه؟
+    # 4️⃣ Hands near face count (0, 1, or 2)
     # =====================================================
     if face_center and hand_boxes:
-
         for (hx1, hy1, hx2, hy2) in hand_boxes:
             hand_center = ((hx1 + hx2) // 2, (hy1 + hy2) // 2)
 
@@ -151,8 +177,7 @@ def process_frame(frame):
             threshold = face_width * 0.6
 
             if distance < threshold:
-                hand_on_face = True
-                break
+                hands_near_face_count += 1
 
     # =====================================================
     # 5️⃣ Phone قريب من الوجه؟
@@ -187,7 +212,7 @@ def process_frame(frame):
             ear, yaw, pitch, perclos,
             phone_detected=phone_detected,
             gaze_direction=gaze_direction,
-            hand_on_face=hand_on_face,
+            hands_near_face_count=hands_near_face_count,
             phone_near_face=phone_near_face
         )
         # store the report in reports folder

@@ -15,6 +15,9 @@ MICRO_SLEEP_TIME = 1.0
 
 RECOVERY_TIME = 6.0
 
+# Hands near face: one-hand grace period (seconds) before risk increases
+HANDS_GRACE_TIME = 5.0
+
 # ===============================
 # Risk limits
 # ===============================

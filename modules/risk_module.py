@@ -19,19 +19,19 @@ class RiskEngine:
         self.gaze_timer = 0.0
         self.eye_closed_timer = 0.0
         self.phone_timer = 0.0
-        self.hand_timer = 0.0   # ✅ NEW
+        self.hand_timer = 0.0   
 
         # Episode Counters
         self.distraction_events = 0
         self.sleep_events = 0
         self.phone_events = 0
-        self.hand_events = 0    # ✅ NEW
+        self.hand_events = 0    
 
         # Episode flags
         self.distraction_active = False
         self.sleep_active = False
         self.phone_active_flag = False
-        self.hand_active_flag = False   # ✅ NEW
+        self.hand_active_flag = False   
 
         # Adaptive factors
         self.repeat_factor = 1.0
@@ -44,6 +44,7 @@ class RiskEngine:
 
         # Head Grace Time
         self.head_grace_time = 0.6
+        self.hands_grace_time = config.HANDS_GRACE_TIME
 
     # ==========================================================
     # MAIN EVALUATION FUNCTION
@@ -51,7 +52,7 @@ class RiskEngine:
     def evaluate(self, ear, yaw, pitch, perclos,
              phone_detected=False,
              gaze_direction="FORWARD",
-             hand_on_face=False,
+             hands_near_face_count=0,
              phone_near_face=False):
 
         current_time = time.time()
@@ -92,18 +93,36 @@ class RiskEngine:
         danger_phone = phone_near_face
 
         # ======================================================
-        # 3️⃣ Hand On Face Tracking ✅ NEW
+        # 3️⃣ Hands Near Face Tracking (hands_count: 0, 1, or 2)
         # ======================================================
-        if hand_on_face:
+        hands_count = min(hands_near_face_count, 2)  # cap at 2
+        hand_risk_intensity = 0.0  # 0 = no risk, 1.0 = full risk
+
+        if hands_count == 0:
+            self.hand_timer = max(0, self.hand_timer - dt * 2)
+            self.hand_active_flag = False
+            distracted_hand = False
+        elif hands_count == 1:
             self.hand_timer += dt
             if not self.hand_active_flag:
                 self.hand_events += 1
                 self.hand_active_flag = True
-        else:
-            self.hand_timer = max(0, self.hand_timer - dt * 2)
-            self.hand_active_flag = False
-
-        distracted_hand = self.hand_timer > 0.7  # لازم تستمر شوية
+            # One hand: 5 second grace period, then progressive risk
+            if self.hand_timer > self.hands_grace_time:
+                distracted_hand = True
+                # Progressive: ramp to full intensity over 5 more seconds
+                extra_time = self.hand_timer - self.hands_grace_time
+                hand_risk_intensity = min(extra_time / self.hands_grace_time, 1.0)
+            else:
+                distracted_hand = False
+        else:  # hands_count == 2
+            self.hand_timer += dt
+            if not self.hand_active_flag:
+                self.hand_events += 1
+                self.hand_active_flag = True
+            # Two hands: immediate risk, no grace period
+            distracted_hand = True
+            hand_risk_intensity = 1.0
 
         # ======================================================
         # 4️⃣ Gaze Down Tracking
@@ -184,8 +203,9 @@ class RiskEngine:
             self.risk_score += rate * dt * self.escalation_factor
 
         elif distracted_hand:
+            # hand_risk_intensity: 1.0 for two hands (immediate), progressive for one hand (after grace)
             rate = self.max_score / 4.0
-            self.risk_score += rate * dt * self.escalation_factor
+            self.risk_score += hand_risk_intensity * rate * dt * self.escalation_factor
 
         elif distracted_gaze:
             rate = self.max_score / 4.5
