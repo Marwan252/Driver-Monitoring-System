@@ -195,11 +195,11 @@ class RiskEngine:
 
         # 🔥 أخطر حالة بعد النوم
         elif danger_phone:
-            rate = self.max_score / 1.5
+            rate = self.max_score / 5.0
             self.risk_score += rate * dt * self.escalation_factor
 
-        elif distracted_phone:
-            rate = self.max_score / 3.0
+        elif distracted_phone and self.phone_timer > 1.0:
+            rate = self.max_score / 6.0
             self.risk_score += rate * dt * self.escalation_factor
 
         elif distracted_hand:

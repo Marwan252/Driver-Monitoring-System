@@ -1,0 +1,12 @@
+# AI Driver Monitoring System - Python Dependencies
+# Install: pip install -r requirements.txt
+
+numpy
+opencv-python
+mediapipe
+ultralytics
+torch
+torchvision
+pillow
+matplotlib
+scipy

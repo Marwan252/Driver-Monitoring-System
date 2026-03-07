@@ -15,7 +15,7 @@ class AttentionAnalyzer:
         self.calibration_frames = []
         self.calibrated = False
         self.ear_threshold = 0.2
-        self.calibration_duration = 10  # ثواني
+        self.calibration_duration = 10  
         self.start_time = time.time()
 
     def update(self, ear):
